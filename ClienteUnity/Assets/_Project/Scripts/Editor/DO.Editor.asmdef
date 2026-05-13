@@ -1,0 +1,20 @@
+{
+    "name": "DO.Editor",
+    "rootNamespace": "DO.Editor",
+    "references": [
+        "DO.Runtime",
+        "DO.Networking",
+        "GUID:7c88a4a7926ee5145ad2dfa06f454c67"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

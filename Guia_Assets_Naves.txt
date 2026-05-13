@@ -1,0 +1,62 @@
+# DarkOrbit 2.0 - Guía de Relación de Assets (Naves)
+Este documento sirve como referencia para saber qué Modelos (Mesh) corresponden a qué Materiales/Texturas.
+
+## Metodología de Construcción
+Para naves que no tienen nombre explícito en el Mesh, se utiliza el índice de AssetRipper.
+Regla general: `default_ID.asset` suele usar `M_DO_1_ID.mat` o un material específico `ship_nombre.mat`.
+
+---
+
+## Mapeo de Naves Conocidas
+
+### Vengeance / Vengeance Lightning
+- **Mesh**: `Assets/Mesh/default_48.asset`
+- **Material**: `Assets/Material/ship_v-lightning.mat`
+- **Alternativo**: `Assets/Material/M_DO_1_48.mat`
+- **Texturas Clave**: `_Diffuse`, `_Normal`, `_Glow` (Mapeadas a Standard: `_MainTex`, `_BumpMap`)
+
+### Goliath Plus
+- **Mesh**: `Assets/Mesh/ship_goliath_plus.asset` (o similar)
+- **Material**: `Assets/Material/ship_goliath_plus.mat`
+- **Diseños**:
+  - Dreadwing: `ship_goliath_plus_dreadwing.mat`
+  - Argon: `ship_goliath_plus_argon.mat`
+
+### Citadel Plus
+- **Mesh**: `Assets/Mesh/ship_citadel_plus_viking.asset`
+- **Material**: `Assets/Material/ship_citadel-plus-viking.mat`
+- **Diseños**:
+  - Samurai: `ship_citadel-plus-samurai.mat`
+  - Shogun: `ship_citadel-plus-shogun.mat`
+
+### Cyborg
+- **Mesh**: `Assets/Mesh/default_125.asset` (Estimado)
+- **Material**: `Assets/Material/ship_cyborg.mat`
+- **Diseños**:
+  - Phantasm: `ship_cyborg-phantasm.mat`
+  - Frost: `ship_cyborg-frost.mat`
+
+### Solace Plus
+- **Mesh**: `Assets/Mesh/ship_solace_plus_striker.asset`
+- **Material**: `Assets/Material/ship_solace_plus_striker.mat`
+
+### Aegis
+- **Material**: `Assets/Material/ship_aegis.mat`
+
+### Berserker
+- **Material**: `Assets/Material/ship_berserker.mat`
+
+### Orcus
+- **Material**: `Assets/Material/ship_orcus.mat`
+
+---
+
+## Notas Técnicas para el SceneBuilder
+Al asignar materiales por código, si la nave se ve **Blanca**, el script `MainSpaceSceneBuilder.cs` realiza lo siguiente:
+1. Cambia el Shader a `Standard`.
+2. Busca la textura en la propiedad `_Diffuse` y la mueve a `_MainTex`.
+3. Busca la textura en la propiedad `_Normal` y la mueve a `_BumpMap`.
+4. Activa el Keyword `_NORMALMAP`.
+
+---
+Documento generado por Antigravity AI - 2026-05-12

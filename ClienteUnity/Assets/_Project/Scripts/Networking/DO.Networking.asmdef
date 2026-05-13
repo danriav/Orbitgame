@@ -1,0 +1,17 @@
+{
+    "name": "DO.Networking",
+    "rootNamespace": "DarkOrbit.Networking",
+    "references": [
+        "GUID:7c88a4a7926ee5145ad2dfa06f454c67",
+        "DO.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
