@@ -55,10 +55,14 @@ namespace DO.Editor
                 GameObject refShip = (GameObject)PrefabUtility.InstantiatePrefab(shipPrefab);
                 PrefabUtility.UnpackPrefabInstance(refShip, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
                 refShip.name = "[VISUAL] Ship Reference";
-                foreach (var comp in refShip.GetComponentsInChildren<Component>())
+                var components = refShip.GetComponentsInChildren<Component>();
+                for (int i = components.Length - 1; i >= 0; i--)
                 {
-                    if (!(comp is Transform || comp is MeshFilter || comp is MeshRenderer))
-                        DestroyImmediate(comp);
+                    var comp = components[i];
+                    if (comp != null && !(comp is Transform || comp is MeshFilter || comp is MeshRenderer))
+                    {
+                        try { DestroyImmediate(comp); } catch {}
+                    }
                 }
             }
 
@@ -97,6 +101,10 @@ namespace DO.Editor
 
             // 6. CÁMARA
             CreateCamera();
+
+            // 7. HUD
+            GameObject hudObj = new GameObject("[HUD] GameHUD");
+            hudObj.AddComponent<DarkOrbit.UI.GameHUD>();
         }
 
         private static GameObject CreateShipPrefab()
@@ -167,10 +175,32 @@ namespace DO.Editor
             tempShip.AddComponent<FishNet.Component.Transforming.NetworkTransform>();
             tempShip.AddComponent<DarkOrbit.Networking.NetworkHealth>();
             tempShip.AddComponent<DarkOrbit.Networking.AbilityPrismaticShield>();
+            tempShip.AddComponent<DarkOrbit.Combat.TargetableEntity>();
+            tempShip.AddComponent<DarkOrbit.Combat.WeaponLoadout>();
+
+            // Efectos visuales de combate
+            var laserFxGO = new GameObject("LaserEffect");
+            laserFxGO.transform.SetParent(tempShip.transform);
+            var laserEffect = laserFxGO.AddComponent<DarkOrbit.Visuals.LaserEffect>();
+
+            var pcFxGO = new GameObject("ParticleCannonEffect");
+            pcFxGO.transform.SetParent(tempShip.transform);
+            var pcEffect = pcFxGO.AddComponent<DarkOrbit.Visuals.ParticleCannonEffect>();
+
+            var combat = tempShip.AddComponent<DarkOrbit.Networking.ShipCombat>();
+            combat.laserEffect    = laserEffect;
+            combat.particleEffect = pcEffect;
+
             tempShip.AddComponent<DarkOrbit.Networking.NetworkShipController>();
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(tempShip, prefabPath);
             GameObject.DestroyImmediate(tempShip);
+            
+            // Asegurar que FishNet genere el AssetPathHash y lo añada a la colección por defecto
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            FishNet.Editing.RefreshDefaultPrefabsMenu.RebuildDefaultPrefabs();
+            
             return prefab;
         }
 

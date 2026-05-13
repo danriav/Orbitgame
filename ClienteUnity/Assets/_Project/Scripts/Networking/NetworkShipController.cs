@@ -7,6 +7,10 @@ namespace DarkOrbit.Networking
 {
     public class NetworkShipController : NetworkBehaviour
     {
+        [Header("Targeting UI")]
+        [Tooltip("Arrastra aquí el objeto del Anillo Visual de la escena")]
+        public DarkOrbit.UI.TargetRingVisual targetRing;
+        
         [Header("Movement Settings")]
         public float moveSpeed = 50f; 
         
@@ -28,6 +32,9 @@ namespace DarkOrbit.Networking
         // Variables para la "Veleta" (Rotación visual)
         private Vector3 _lastPosition;
 
+        // --- ¡ESTA ES LA VARIABLE QUE FALTABA! ---
+        private DarkOrbit.Combat.TargetableEntity _currentTarget;
+
         private void Awake()
         {
             _networkTransform = GetComponent<NetworkTransform>();
@@ -37,7 +44,6 @@ namespace DarkOrbit.Networking
         {
             base.OnStartClient();
             
-            // Guardamos la posición inicial
             _lastPosition = transform.position;
 
             if (IsOwner)
@@ -55,25 +61,25 @@ namespace DarkOrbit.Networking
 
         private void Update()
         {
-            // ----------------------------------------------------
-            // 1. LÓGICA VISUAL CLIENT-SIDE (Para todas las naves)
-            // ----------------------------------------------------
+            // 1. LÓGICA VISUAL CLIENT-SIDE
             HandleVisualRotation();
 
-            // ----------------------------------------------------
             // 2. LÓGICA DEL CLIENTE LOCAL (Inputs)
-            // ----------------------------------------------------
             if (IsOwner)
             {
-                // Clic inicial
+                // --- ¡AQUÍ ESTÁ EL CÓDIGO CORREGIDO PARA USAR EL RAYCAST! ---
                 if (Input.GetMouseButtonDown(0))
                 {
-                    UpdateDestination();
+                    // Intentamos fijar un objetivo. Si fallamos, nos movemos.
+                    if (!TryTargetEntity())
+                    {
+                        UpdateDestination();
+                    }
                 }
-                // Mantener presionado (limitado por Rate Limiting)
                 else if (Input.GetMouseButton(0))
                 {
-                    if (Time.time >= _nextDragUpdateTime)
+                    // Solo nos movemos si NO tenemos un objetivo seleccionado
+                    if (_currentTarget == null && Time.time >= _nextDragUpdateTime)
                     {
                         UpdateDestination();
                     }
@@ -92,10 +98,8 @@ namespace DarkOrbit.Networking
                 }
             }
 
-            // ----------------------------------------------------
             // 3. LÓGICA DEL SERVIDOR (Movimiento real)
-            // ----------------------------------------------------
-            if (IsServer && _isMoving)
+            if (IsServerInitialized && _isMoving)
             {
                 transform.position = Vector3.MoveTowards(transform.position, _targetPosition, moveSpeed * Time.deltaTime);
 
@@ -106,24 +110,15 @@ namespace DarkOrbit.Networking
             }
         }
 
-        /// <summary>
-        /// Método de ayuda para procesar el input del mouse y enviarlo al servidor
-        /// respetando el límite de spam (Rate Limit).
-        /// </summary>
         private void UpdateDestination()
         {
             Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             mousePos.z = 0; 
 
             CmdSetDestination(mousePos);
-            
-            // Reiniciamos el temporizador para la próxima actualización permitida
             _nextDragUpdateTime = Time.time + dragUpdateRate;
         }
 
-        /// <summary>
-        /// Calcula y aplica la rotación basándose en el movimiento real de la nave.
-        /// </summary>
         private void HandleVisualRotation()
         {
             Vector3 movementDelta = transform.position - _lastPosition;
@@ -148,6 +143,44 @@ namespace DarkOrbit.Networking
         {
             _targetPosition = destination;
             _isMoving = true;
+        }
+
+        private bool TryTargetEntity()
+        {
+            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+            if (Physics.Raycast(ray, out RaycastHit hit, 1000f))
+            {
+                var target = hit.collider.GetComponent<DarkOrbit.Combat.TargetableEntity>();
+                
+                if (target != null)
+                {
+                    if (target.NetworkObject == this.NetworkObject) return false;
+                    if (_currentTarget == target) return true;
+
+                    _currentTarget = target;
+                    Debug.Log($"[TARGET] Objetivo fijado: {target.entityName}");
+                    
+                    if (targetRing != null) targetRing.SetTarget(target.transform);
+                    
+                    return true; 
+                }
+            }
+
+            if (_currentTarget != null)
+            {
+                Debug.Log("[TARGET] Objetivo perdido. Deseleccionando...");
+                _currentTarget = null;
+                
+                if (targetRing != null) targetRing.ClearTarget();
+            }
+
+            return false;
+        }
+
+        public DarkOrbit.Combat.TargetableEntity GetCurrentTarget()
+        {
+            return _currentTarget;
         }
     }
 }
