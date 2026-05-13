@@ -5,17 +5,28 @@ using FishNet.Component.Transforming;
 
 namespace DarkOrbit.Networking
 {
-    /// <summary>
-    /// Controlador de nave con autoridad del servidor (Server Authoritative)
-    /// </summary>
     public class NetworkShipController : NetworkBehaviour
     {
         [Header("Movement Settings")]
-        public float moveSpeed = 50f;
-        public float rotationSpeed = 100f;
+        public float moveSpeed = 50f; 
+        
+        [Header("Network Settings")]
+        [Tooltip("Cada cuántos segundos se envía una actualización al servidor mientras se mantiene presionado el clic")]
+        public float dragUpdateRate = 0.15f; 
+        private float _nextDragUpdateTime = 0f;
+        
+        [Header("Visual Settings")]
+        [Tooltip("Velocidad a la que la nave gira hacia su destino")]
+        public float rotationSpeed = 15f; 
+        [Tooltip("Offset para corregir hacia dónde mira la 'nariz' del modelo 3D")]
+        public float modelRotationOffset = -90f;
 
-        // Referencia al componente de sincronización de FishNet
+        private Vector3 _targetPosition;
+        private bool _isMoving = false;
         private NetworkTransform _networkTransform;
+
+        // Variables para la "Veleta" (Rotación visual)
+        private Vector3 _lastPosition;
 
         private void Awake()
         {
@@ -25,75 +36,118 @@ namespace DarkOrbit.Networking
         public override void OnStartClient()
         {
             base.OnStartClient();
-            // Solo habilitamos el input si somos el dueño de esta nave
+            
+            // Guardamos la posición inicial
+            _lastPosition = transform.position;
+
             if (IsOwner)
             {
                 gameObject.name = "LocalPlayerShip";
                 gameObject.tag = "Player";
                 
-                // Buscar la cámara y asignarle el target
                 var camController = Camera.main?.GetComponent<DO.Controllers.FollowCameraController>();
                 if (camController != null)
                 {
                     camController.SetTarget(transform);
                 }
             }
-            else
-            {
-                enabled = false;
-            }
         }
 
         private void Update()
         {
-            // Solo procesamos input si somos el dueño de esta nave
-            if (!IsOwner) return;
+            // ----------------------------------------------------
+            // 1. LÓGICA VISUAL CLIENT-SIDE (Para todas las naves)
+            // ----------------------------------------------------
+            HandleVisualRotation();
 
-            // 1. MOVIMIENTO
-            float move = Input.GetAxis("Vertical");
-            float rotate = Input.GetAxis("Horizontal");
-
-            if (move != 0 || rotate != 0)
+            // ----------------------------------------------------
+            // 2. LÓGICA DEL CLIENTE LOCAL (Inputs)
+            // ----------------------------------------------------
+            if (IsOwner)
             {
-                CmdMove(move, rotate);
-            }
-
-            // 2. ACTIVAR HABILIDAD (Tecla 1)
-            if (Input.GetKeyDown(KeyCode.Alpha1))
-            {
-                var shield = GetComponent<AbilityPrismaticShield>();
-                if (shield != null)
+                // Clic inicial
+                if (Input.GetMouseButtonDown(0))
                 {
-                    // Alternamos el escudo (si está activo lo apaga, si no lo activa)
-                    shield.CmdToggleShield(!shield.isShieldActive.Value);
+                    UpdateDestination();
+                }
+                // Mantener presionado (limitado por Rate Limiting)
+                else if (Input.GetMouseButton(0))
+                {
+                    if (Time.time >= _nextDragUpdateTime)
+                    {
+                        UpdateDestination();
+                    }
+                }
+
+                if (Input.GetKeyDown(KeyCode.Alpha1))
+                {
+                    var shield = GetComponent<AbilityPrismaticShield>();
+                    if (shield != null) shield.CmdToggleShield(!shield.isShieldActive.Value);
+                }
+
+                if (Input.GetKeyDown(KeyCode.K))
+                {
+                    var health = GetComponent<NetworkHealth>();
+                    if (health != null) health.CmdApplyDamage(50000f);
                 }
             }
 
-            // 3. SIMULAR DAÑO (Tecla K para testeo)
-            if (Input.GetKeyDown(KeyCode.K))
+            // ----------------------------------------------------
+            // 3. LÓGICA DEL SERVIDOR (Movimiento real)
+            // ----------------------------------------------------
+            if (IsServer && _isMoving)
             {
-                var health = GetComponent<NetworkHealth>();
-                if (health != null)
+                transform.position = Vector3.MoveTowards(transform.position, _targetPosition, moveSpeed * Time.deltaTime);
+
+                if (Vector3.Distance(transform.position, _targetPosition) < 0.1f)
                 {
-                    Debug.Log("[TEST] Recibiendo 50,000 de daño...");
-                    health.CmdApplyDamage(50000f);
+                    _isMoving = false;
                 }
             }
         }
 
         /// <summary>
-        /// Este comando se ejecuta estrictamente en el servidor.
+        /// Método de ayuda para procesar el input del mouse y enviarlo al servidor
+        /// respetando el límite de spam (Rate Limit).
         /// </summary>
-        [ServerRpc]
-        private void CmdMove(float horizontal, float vertical)
+        private void UpdateDestination()
         {
-            // Movimiento directo en los ejes X e Y
-            Vector3 moveDir = new Vector3(horizontal, vertical, 0);
-            if (moveDir.magnitude > 1f) moveDir.Normalize();
+            Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            mousePos.z = 0; 
+
+            CmdSetDestination(mousePos);
             
-            transform.position += moveDir * moveSpeed * Time.deltaTime;
-            
-            // Sin rotación en Z por ahora, como solicitó el usuario
+            // Reiniciamos el temporizador para la próxima actualización permitida
+            _nextDragUpdateTime = Time.time + dragUpdateRate;
+        }
+
+        /// <summary>
+        /// Calcula y aplica la rotación basándose en el movimiento real de la nave.
+        /// </summary>
+        private void HandleVisualRotation()
+        {
+            Vector3 movementDelta = transform.position - _lastPosition;
+
+            if (movementDelta.sqrMagnitude > 0.001f)
+            {
+                Vector3 direction = movementDelta.normalized;
+                float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+
+                Quaternion baseRotation = Quaternion.Euler(90f, 180f, 0f);
+                Quaternion zRotation = Quaternion.Euler(0f, 0f, angle + modelRotationOffset);
+                Quaternion targetRotation = zRotation * baseRotation;
+
+                transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+            }
+
+            _lastPosition = transform.position;
+        }
+
+        [ServerRpc]
+        private void CmdSetDestination(Vector3 destination)
+        {
+            _targetPosition = destination;
+            _isMoving = true;
         }
     }
 }

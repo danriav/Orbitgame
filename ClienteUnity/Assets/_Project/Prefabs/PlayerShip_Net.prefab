@@ -274,4 +274,5 @@ MonoBehaviour:
   _addedNetworkObject: {fileID: 550533756933571512}
   _networkObjectCache: {fileID: 0}
   moveSpeed: 50
-  rotationSpeed: 100
+  rotationSpeed: 15
+  modelRotationOffset: -90
